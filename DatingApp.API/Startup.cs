@@ -13,6 +13,15 @@ using Microsoft.Extensions.Logging;
 using DatingApp.API.Model;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using DatingApp.API.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Net;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using DatingApp.API.Helpers;
+using AutoMapper;
 
 namespace DatingApp.API
 {
@@ -31,7 +40,25 @@ namespace DatingApp.API
             services.AddDbContext<DatingAppContext>(x=>x.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
             services.AddControllers();
             services.AddCors();
-
+            services.Configure<CloudinarySettings>(Configuration.GetSection("CloudinarySettings"));
+            services.AddAutoMapper(typeof(DatingRepository).Assembly);
+            services.AddScoped<IAuthRepository,AuthRepository>();
+            services.AddScoped<IDatingRepository,DatingRepository>();
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options => {
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                   ValidateIssuerSigningKey = true,
+                   IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII
+                   .GetBytes(Configuration.GetSection("AppSettings:Token").Value)) ,
+                   ValidateIssuer = false,
+                   ValidateAudience = false
+                };
+            });
+            services.AddControllersWithViews()
+                 .AddNewtonsoftJson(options =>
+                 options.SerializerSettings.ReferenceLoopHandling = Newtonsoft.Json.ReferenceLoopHandling.Ignore);
+            services.AddScoped<LogUserActivity>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -41,9 +68,11 @@ namespace DatingApp.API
             {
                 app.UseDeveloperExceptionPage();
             }
+            
 
            // app.UseHttpsRedirection();
            app.UseCors(x=>x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+           app.UseAuthentication();
             app.UseRouting();
 
             app.UseAuthorization();
